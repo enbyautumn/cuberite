@@ -1408,7 +1408,7 @@ bool cEntity::DetectPortal()
 					cWorld * TargetWorld = cRoot::Get()->GetWorld(GetWorld()->GetLinkedOverworldName());
 					ASSERT(TargetWorld != nullptr);  // The linkage checker should have prevented this at startup. See cWorld::start()
 					LOGD("Jumping %s -> %s", DimensionToString(dimNether).c_str(), DimensionToString(DestionationDim).c_str());
-					new cNetherPortalScanner(this, TargetWorld, TargetPos, cChunkDef::Height);
+					new cNetherPortalScanner(*this, TargetWorld, TargetPos, cChunkDef::Height);
 					return true;
 				}
 				// Nether portal in the overworld
@@ -1440,7 +1440,7 @@ bool cEntity::DetectPortal()
 					cWorld * TargetWorld = cRoot::Get()->GetWorld(GetWorld()->GetLinkedNetherWorldName());
 					ASSERT(TargetWorld != nullptr);  // The linkage checker should have prevented this at startup. See cWorld::start()
 					LOGD("Jumping %s -> %s", DimensionToString(dimOverworld).c_str(), DimensionToString(DestionationDim).c_str());
-					new cNetherPortalScanner(this, TargetWorld, TargetPos, (cChunkDef::Height / 2));
+					new cNetherPortalScanner(*this, TargetWorld, TargetPos, (cChunkDef::Height / 2));
 					return true;
 				}
 			}
@@ -1596,18 +1596,41 @@ bool cEntity::MoveToWorld(cWorld * a_World, Vector3d a_NewPosition, bool a_SetPo
 	// Publish atomically
 	auto OldWCI = m_WorldChangeInfo.exchange(std::move(NewWCI));
 
-	if (OldWCI == nullptr)
+	if (OldWCI != nullptr)
 	{
-		// Schedule a new world change.
-		GetWorld()->QueueTask(
-			[this](cWorld & a_CurWorld)
-			{
-				auto WCI = m_WorldChangeInfo.exchange(nullptr);
-				cWorld::cLock Lock(a_CurWorld);
-				DoMoveToWorld(*WCI);
-			}
-		);
+		// Avoid scheduling multiple warp tasks
+		return true;
 	}
+
+	/* Requirements:
+	Only one world change in-flight at any time
+	No ticking during world changes
+	The last invocation takes effect
+
+	As of writing, cWorld ticks entities, clients, and then processes tasks
+	We may call MoveToWorld (any number of times - consider multiple /portal commands within a tick) in the first and second stages
+	Queue a task onto the third stage to invoke DoMoveToWorld ONCE with the last given destination world
+	Store entity IDs in case client tick found the player disconnected and immediately destroys the object
+
+	After the move begins, no further calls to MoveToWorld is possible since neither the client nor entity is ticked
+	This remains until the warp is complete and the destination world resumes ticking.
+	*/
+	GetWorld()->QueueTask(
+		[EntityID = GetUniqueID()](cWorld & a_CurWorld)
+		{
+			a_CurWorld.DoWithEntityByID(
+				EntityID,
+				[](auto & a_Entity)
+				{
+					auto WCI = a_Entity.m_WorldChangeInfo.exchange(nullptr);
+					// TODO: halp
+					// cWorld::cLock Lock(a_CurWorld);
+					a_Entity.DoMoveToWorld(*WCI);
+					return true;
+				}
+			);
+		}
+	);
 
 	return true;
 }
