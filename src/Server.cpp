@@ -221,11 +221,11 @@ bool cServer::InitServer(cSettingsRepositoryInterface & a_Settings, bool a_Shoul
 		m_ClientViewDistance = cClientHandle::MIN_VIEW_DISTANCE;
 		LOGINFO("Setting default viewdistance to the minimum of %d", m_ClientViewDistance);
 	}
-	if (m_ClientViewDistance > cClientHandle::MAX_VIEW_DISTANCE)
+	/*if (m_ClientViewDistance > cClientHandle::MAX_VIEW_DISTANCE)
 	{
 		m_ClientViewDistance = cClientHandle::MAX_VIEW_DISTANCE;
 		LOGINFO("Setting default viewdistance to the maximum of %d", m_ClientViewDistance);
-	}
+	}*/
 
 	PrepareKeys();
 
