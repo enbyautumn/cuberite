@@ -53,8 +53,8 @@ public:  // tolua_export
 	#else
 		static const int DEFAULT_VIEW_DISTANCE = 10;
 	#endif
-	static const int MAX_VIEW_DISTANCE = 32;
-	static const int MIN_VIEW_DISTANCE = 1;
+	static const int MAX_VIEW_DISTANCE = 128;
+	static const int MIN_VIEW_DISTANCE = -128;
 
 	/** The percentage how much a block has to be broken.
 	Should be a value between 0.7 (70% broken) and 1 (100% broken) depending on lag.
